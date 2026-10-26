@@ -1,0 +1,2 @@
+streamlit
+git+https://github.com/v11061373-hue/baremetal-harness.git@392a24d4d1a044a0a37859657b45d8dd0d0e774f
