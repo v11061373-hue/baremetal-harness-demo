@@ -30,3 +30,41 @@ def test_run_self_improve_promotes():
     assert result["candidate"]["math"] is True, "候选通过"
     assert result["promote"] is True, "gate 判 promote"
     assert "converted" in result["reason"]
+
+
+def test_build_tasks_custom_prompt_needle():
+    tasks = demo.build_tasks(prompt="2+2?", needle="4")
+    assert len(tasks) == 1
+    task = tasks[0]
+    assert task.prompt == "2+2?"
+    assert asyncio.run(task.verifier.verify("答案是 4", task.prompt)) is None
+    assert asyncio.run(task.verifier.verify("答案是 5", task.prompt)) is not None
+
+
+def test_make_runtime_offline(monkeypatch):
+    monkeypatch.delenv("BAREMETAL_HARNESS_API_KEY", raising=False)
+    provider, model, miner = demo.make_runtime()
+    assert isinstance(provider, demo.ScriptedModel)
+    assert model == "scripted"
+    assert isinstance(miner, demo.ScriptedModel)
+
+
+def test_make_runtime_live(monkeypatch):
+    monkeypatch.setenv("BAREMETAL_HARNESS_API_KEY", "sk-test")
+    monkeypatch.delenv("BAREMETAL_HARNESS_BASE_URL", raising=False)
+    monkeypatch.delenv("BAREMETAL_HARNESS_MODEL", raising=False)
+    provider, model, miner = demo.make_runtime()
+    assert isinstance(provider, demo.OpenAICompatibleClient)
+    assert model == "deepseek-chat"
+    assert miner is provider
+
+
+def test_run_eval_trace_shape():
+    trace = asyncio.run(demo.run_eval_trace())
+    assert len(trace) == 1
+    step = trace[0]
+    assert step["failures"], "baseline 有失败"
+    assert len(step["candidates"]) >= 2, "机械候选 + LLM 候选"
+    for c in step["candidates"]:
+        assert set(c) >= {"kind", "rules", "scores", "gate_promote", "gate_reason"}
+    assert step["promoted"] is not None
