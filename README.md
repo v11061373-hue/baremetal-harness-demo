@@ -1,5 +1,7 @@
 # baremetal-harness demo
 
+[![Quality Gate Status](https://sonarcloud.io/api/project_badges/measure?project=v11061373-hue_baremetal-harness-demo&metric=alert_status)](https://sonarcloud.io/summary/new_code?id=v11061373-hue_baremetal-harness-demo)
+
 `baremetal-harness`（[仓库](https://github.com/v11061373-hue/baremetal-harness)）的在线 demo：
 可嵌入的评测迭代 Agent harness 的两个核心闭环，全离线可跑（无 API Key）。
 
