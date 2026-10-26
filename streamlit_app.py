@@ -44,17 +44,33 @@ with st.expander("Σ-RSI 循环怎么转（propose → evaluate → weighted_gat
 
 st.divider()
 
-key = os.environ.get("BAREMETAL_HARNESS_API_KEY")
+with st.expander("🔑 接自己的 key（可选，任意 OpenAI 兼容端点）"):
+    ui_key = st.text_input(
+        "API Key",
+        type="password",
+        help="不填走离线回放；本地 Ollama 填 ollama。",
+    )
+    ui_base = st.text_input(
+        "Base URL",
+        value="https://api.deepseek.com",
+        help="本地 Ollama 填 http://localhost:11434/v1。",
+    )
+    ui_model = st.text_input("Model", value="deepseek-chat")
+    st.caption(
+        "安全声明：key 仅存当前浏览器会话内存，不落盘、不写 Streamlit Secrets、"
+        "不进 GitHub 仓库。建议用临时 key，用完即删。"
+    )
+
+key = ui_key or os.environ.get("BAREMETAL_HARNESS_API_KEY")
 if key:
-    base = os.environ.get("BAREMETAL_HARNESS_BASE_URL") or "https://api.deepseek.com"
-    model = os.environ.get("BAREMETAL_HARNESS_MODEL") or "deepseek-chat"
+    base = ui_base or os.environ.get("BAREMETAL_HARNESS_BASE_URL") or "https://api.deepseek.com"
+    model = ui_model or os.environ.get("BAREMETAL_HARNESS_MODEL") or "deepseek-chat"
     st.info(f"模型：真调 OpenAI 兼容端点 `{base}`（model=`{model}`）")
 else:
     st.warning(
         "模型：离线 ScriptedModel 回放（只会答 6/42，仅 6*7 演示有意义）。"
-        "跑自己的任务请配 `BAREMETAL_HARNESS_API_KEY`（Streamlit Secrets）；"
-        "本地免费走 Ollama：`BAREMETAL_HARNESS_BASE_URL=http://localhost:11434/v1`"
-        "+ `BAREMETAL_HARNESS_API_KEY=ollama`。"
+        "跑自己的任务请在上面接 key；本地免费走 Ollama："
+        "Base URL `http://localhost:11434/v1` + API Key `ollama`。"
     )
 
 col1, col2 = st.columns(2)
@@ -69,7 +85,9 @@ with tab1:
     st.markdown("propose（候选枚举）→ evaluate（离线评测）→ weighted_gate（preserve-and-extend）→ promote（写回 SKILL.md）。")
     if st.button("跑评测循环（逐中间态）", key="eval", type="primary"):
         tasks = demo.build_tasks(prompt=prompt, needle=needle)
-        trace = asyncio.run(demo.run_eval_trace(tasks))
+        trace = asyncio.run(
+            demo.run_eval_trace(tasks, api_key=ui_key, base_url=ui_base, model=ui_model)
+        )
         for i, step in enumerate(trace):
             st.subheader(f"迭代 {i}")
             st.markdown("**baseline 评分**")
@@ -100,7 +118,9 @@ with tab2:
     st.markdown("四阶段：跑任务 → 挖失败规则（机械 mine_rule）→ preserve-and-extend gate → 注入。")
     if st.button("跑自迭代", key="self", type="primary"):
         tasks = demo.build_tasks(prompt=prompt, needle=needle)
-        result = asyncio.run(demo.run_self_improve(tasks))
+        result = asyncio.run(
+            demo.run_self_improve(tasks, api_key=ui_key, base_url=ui_base, model=ui_model)
+        )
         st.subheader("baseline vs candidate")
         st.json({"baseline": result["baseline"], "candidate": result["candidate"]})
         st.subheader("挖出的规则")

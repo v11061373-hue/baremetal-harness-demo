@@ -71,19 +71,22 @@ def _offline_miner() -> ScriptedModel:
     return ScriptedModel(((TextDelta("answer 42"), ResponseCompleted("stop")),))
 
 
-def make_runtime() -> tuple[object, str, object]:
+def make_runtime(
+    api_key: str | None = None, base_url: str | None = None, model: str | None = None
+) -> tuple[object, str, object]:
     """(provider, model, miner)。有 key 真调 OpenAI 兼容端点；无 key ScriptedModel 回放。"""
-    api_key = os.environ.get("BAREMETAL_HARNESS_API_KEY")
+    api_key = api_key or os.environ.get("BAREMETAL_HARNESS_API_KEY")
     if api_key:
-        base_url = os.environ.get("BAREMETAL_HARNESS_BASE_URL") or "https://api.deepseek.com"
-        model = os.environ.get("BAREMETAL_HARNESS_MODEL") or "deepseek-chat"
+        base_url = base_url or os.environ.get("BAREMETAL_HARNESS_BASE_URL") or "https://api.deepseek.com"
+        model = model or os.environ.get("BAREMETAL_HARNESS_MODEL") or "deepseek-chat"
         provider = OpenAICompatibleClient(base_url, api_key)
         return provider, model, provider
     return _offline_provider(), "scripted", _offline_miner()
 
 
 async def run_eval_trace(
-    tasks: tuple[EvolutionTask, ...] | None = None, *, iterations: int = 1
+    tasks: tuple[EvolutionTask, ...] | None = None, *, iterations: int = 1,
+    api_key: str | None = None, base_url: str | None = None, model: str | None = None,
 ) -> list[dict]:
     """Σ-RSI 分支搜索逐中间态：baseline 分/失败 → 候选枚举 → 逐候选 gate → promote。
 
@@ -91,7 +94,7 @@ async def run_eval_trace(
     weighted_gate / mine_rule_llm 的每步结果暴露出来，供算法侧可视化。
     """
     tasks = tasks or build_tasks()
-    provider, model, miner = make_runtime()
+    provider, model, miner = make_runtime(api_key=api_key, base_url=base_url, model=model)
     current = ScaffoldState()
     trace: list[dict] = []
     for _ in range(iterations):
@@ -147,10 +150,13 @@ async def run_eval_trace(
     return trace
 
 
-async def run_eval_loop(tasks: tuple[EvolutionTask, ...] | None = None) -> dict:
+async def run_eval_loop(
+    tasks: tuple[EvolutionTask, ...] | None = None, *,
+    api_key: str | None = None, base_url: str | None = None, model: str | None = None,
+) -> dict:
     """Σ-RSI 分支搜索一步（汇总版）：候选枚举→离线评测→weighted_gate→写回 SKILL.md。"""
     tasks = tasks or build_tasks()
-    provider, model, miner = make_runtime()
+    provider, model, miner = make_runtime(api_key=api_key, base_url=base_url, model=model)
     steps = await branch_search(
         tasks,
         provider=provider,
@@ -181,10 +187,13 @@ async def run_eval_loop(tasks: tuple[EvolutionTask, ...] | None = None) -> dict:
     return {"steps": rendered, "skill_md": skill_md}
 
 
-async def run_self_improve(tasks: tuple[EvolutionTask, ...] | None = None) -> dict:
+async def run_self_improve(
+    tasks: tuple[EvolutionTask, ...] | None = None, *,
+    api_key: str | None = None, base_url: str | None = None, model: str | None = None,
+) -> dict:
     """外层自迭代四阶段：run→mine→gate（干跑报告，不落盘）。"""
     tasks = tasks or build_tasks()
-    provider, model, _ = make_runtime()
+    provider, model, _ = make_runtime(api_key=api_key, base_url=base_url, model=model)
 
     async def _run_all(prov):
         return {

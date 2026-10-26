@@ -68,3 +68,39 @@ def test_run_eval_trace_shape():
     for c in step["candidates"]:
         assert set(c) >= {"kind", "rules", "scores", "gate_promote", "gate_reason"}
     assert step["promoted"] is not None
+
+
+def test_make_runtime_explicit_params(monkeypatch):
+    monkeypatch.delenv("BAREMETAL_HARNESS_API_KEY", raising=False)
+    provider, model, miner = demo.make_runtime(
+        api_key="ollama", base_url="http://localhost:11434/v1", model="llama3"
+    )
+    assert isinstance(provider, demo.OpenAICompatibleClient)
+    assert model == "llama3"
+    assert miner is provider
+
+
+def test_run_eval_trace_forwards_runtime_kwargs(monkeypatch):
+    captured = {}
+
+    def fake_runtime(api_key=None, base_url=None, model=None):
+        captured["api_key"] = api_key
+        captured["base_url"] = base_url
+        captured["model"] = model
+        return demo._offline_provider(), "scripted", demo._offline_miner()
+
+    monkeypatch.setattr(demo, "make_runtime", fake_runtime)
+    asyncio.run(demo.run_eval_trace(api_key="k", base_url="u", model="m"))
+    assert captured == {"api_key": "k", "base_url": "u", "model": "m"}
+
+
+def test_run_self_improve_forwards_runtime_kwargs(monkeypatch):
+    captured = {}
+
+    def fake_runtime(api_key=None, base_url=None, model=None):
+        captured["api_key"] = api_key
+        return demo._offline_provider(), "scripted", demo._offline_miner()
+
+    monkeypatch.setattr(demo, "make_runtime", fake_runtime)
+    asyncio.run(demo.run_self_improve(api_key="k"))
+    assert captured["api_key"] == "k"
